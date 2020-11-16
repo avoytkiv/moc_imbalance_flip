@@ -3,11 +3,12 @@ import pandas as pd
 from datetime import datetime, timedelta
 import time
 import os
+from tools.credentials import get_login, get_pass
 
 
 cwd = os.getcwd()
-user = 'avoitkiv'
-password = 'Pooboad2Fe3d'
+user = get_login()
+password = get_pass()
 con = pymysql.connect(host='10.12.1.25', port=3306, database='UsEquitiesL1', user=user, password=password)
 
 
