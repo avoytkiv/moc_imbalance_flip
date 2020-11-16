@@ -95,9 +95,8 @@ query_close_price = "SELECT * " \
                     "GROUP BY Timestamp "
 
 
-
-
 path = cwd + '/data/imbalances/*.csv'
+data = []
 for f in glob.glob(path):
     date = re.search('imbalances/(.*).csv', f).group(1)
     logger.info('Date: {}'.format(date))
@@ -107,35 +106,13 @@ for f in glob.glob(path):
 
     logger.info('Symbols in universe: {}'.format(symbols))
 
-    hold_period = 60000
-
-    data = []
     for s in symbols:
         stock = pd.read_sql_query(query_stock, con, params={'symbol': s, 'date': date})
         volume = stock['Shares'].iloc[-1]
 
         if volume < bt_config['minVolume']:
-            logger.info('Volume filter: {} is less than {}'.format(volume, bt_config['minVolume']))
+            logger.info('Volume filter')
             continue
-
-        # # Get moc price for the date. Use next available date
-        # df_moc_close_price = pd.read_sql_query(query_close_price, con,
-        #                                        params={'symbol': s, 'date': next_date(date, 1)})
-        #
-        # # If no moc price because of weekend day
-        # # TODO: how to be sure that we got correct moc price and the data is not missing for long period
-        # # TODO: in current flow will get price anyway
-        # while df_moc_close_price.empty:
-        #     logger.info('No moc price for {} for this date {}. Try next date'.format(s, date))
-        #     new_date = next_date(date=date, i=+1)
-        #     logger.info('New date: {}'.format(new_date))
-        #     df_moc_close_price = pd.read_sql_query(query_close_price, con,
-        #                             params={'symbol': s, 'date': new_date})
-        #
-        #     date = new_date
-        #
-        # moc_close_price = df_moc_close_price['Price'].iloc[0] / 10000
-        # logger.info('Current symbol {} with volume {} and moc price {}'.format(s, volume, moc_close_price))
 
         current_symbol = df[df['Symbol'] == s].copy()
         current_symbol['reverse_count'] = np.arange(start=1, stop=len(current_symbol)+1)
@@ -143,85 +120,118 @@ for f in glob.glob(path):
         current_symbol['imbAfterReversePct'] = current_symbol['NextiShares'] * 100 / volume
         current_symbol['deltaImbPct'] = current_symbol['imbAfterReversePct'] - current_symbol['imbBeforeReversePct']
 
-        if current_symbol[current_symbol['deltaImbPct'].abs() > bt_config['absDeltaImbPct']].empty:
-            logger.info('Delta imbalance filter: {} is less than {}'.format(volume, bt_config))
+        current_symbol = current_symbol[current_symbol['deltaImbPct'].abs() > bt_config['absDeltaImbPct']]
+        if current_symbol.empty:
+            logger.info('Delta imbalance filter')
             continue
+
+        current_symbol['direction'] = np.where(current_symbol['deltaImbPct'] > 0, 'Long', 'Short')
+        current_symbol['open_price'] = np.where(current_symbol['direction'] == 'Long',
+                                                current_symbol['NextAsk_P'], current_symbol['NextBid_P'])
+        current_symbol['spread_at_open'] = current_symbol['NextAsk_P'] - current_symbol['NextBid_P']
+
+        current_symbol = current_symbol[current_symbol['spread_at_open'] < bt_config['maxSpread']]
+        if current_symbol[current_symbol['spread_at_open'] < bt_config['maxSpread']].empty:
+            logger.info('Spread filter')
+            continue
+
+
+        # Trade only first reversal
+        current_symbol = current_symbol[current_symbol['reverse_count'] == current_symbol['reverse_count'].min()]
 
         # Set time index
         current_symbol.loc[:, 'TIME'] = current_symbol.loc[:, 'TIME'].map(lambda x: x.lstrip('0 days '))
-        current_symbol['timeindex'] = current_symbol.loc[:, ['Timestamp', 'TIME']].apply(lambda x: ' '.join(x), axis=1)
-        current_symbol.index = pd.to_datetime(current_symbol['timeindex'])
+        current_symbol['start'] = current_symbol.loc[:, ['Timestamp', 'TIME']].apply(lambda x: ' '.join(x), axis=1)
+        current_symbol.index = pd.to_datetime(current_symbol['start'])
+        current_symbol['stop'] = current_symbol.index + timedelta(milliseconds=bt_config['hold'])
+        current_symbol.loc[current_symbol['stop'] > pd.to_datetime(date + ' ' + '16:00:00'), 'close_status'] = 'moc'
+        current_symbol['close_status'] = current_symbol['close_status'].fillna('market')
+        current_symbol.loc[current_symbol['stop'] > pd.to_datetime(date + ' ' + '16:00:00'), 'stop'] = pd.to_datetime(
+            date + ' ' + '16:00:00')
         current_symbol = current_symbol.loc[current_symbol.index < pd.to_datetime(date + ' ' + '15:59:59')]
 
-        current_symbol['stop'] = current_symbol.index + timedelta(milliseconds=hold_period)
-        current_symbol.loc[current_symbol['stop'] > pd.to_datetime(date + ' ' + '15:59:59'), 'stop'] = pd.to_datetime(date + ' ' + '16:00:00')
+        if current_symbol.empty:
+            logger.info('Time entry filter')
+            continue
 
         # Slice price data needed for returns calculation
-        datetime_start = current_symbol['timeindex'].iloc[0].split('.')[0]
-        datetime_stop = str(current_symbol['stop'].iloc[-1]).split('.')[0]
+        datetime_start = current_symbol['start'].iloc[0].split('.')[0]
+        datetime_stop = str(current_symbol['stop'].iloc[0]).split('.')[0]
 
         logger.info('Time range from {} to {}'.format(datetime_start, datetime_stop))
 
+        # Slice prices
         current_prices = get_prices(s, date, datetime_start, datetime_stop)
 
         if current_prices.empty:
             logger.info('No price data for this reversal')
             continue
 
-        for index, row in current_symbol.iterrows():
-            if index > pd.to_datetime(date + ' ' + '15:59:59'):
-                logger.info('Continue because start datetime {} is later than 15:59:59'.format(index))
-                continue
-            logger.info('Reverse count: {}'.format(row['reverse_count']))
-            direction = 'Long' if np.sign(row['deltaImbPct']) > 0 else 'Short'
-            open_price = row['Ask_P'] if 'Long' else row['Bid_P']
-            spread_at_open = row['Ask_P'] - row['Bid_P']
 
-            exit_time = index + timedelta(milliseconds=bt_config['hold'])
-            current_prices_slice = current_prices[(current_prices.index > index) & (current_prices.index < exit_time)]
-
-            if current_prices_slice.empty:
-                logger.info('No data for {} time hold'.format(bt_config['hold']))
-                continue
+        direction = current_symbol['direction'].iloc[0]
+        open_price = current_symbol['open_price'].iloc[0]
+        close_status = current_symbol['close_status'].iloc[0]
+        spread_at_open = current_symbol['spread_at_open'].iloc[0]
 
 
-            if exit_time > pd.to_datetime(date + ' ' + '16:00:00'):
-                exit_time = pd.to_datetime(date + ' ' + '16:00:00')
-                close_price = moc_close_price
-                spread_at_close = 0
-                close_status = 'moc'
-                logger.info('Close position with moc order')
-            else:
-                if direction == 'Long':
-                    close_price = current_prices_slice['Bid_P'].iloc[-1]
-                elif direction == 'Short':
-                    close_price = current_prices_slice['Ask_P'].iloc[-1]
+        if close_status == 'moc':
+            # Get moc price for the date. Use next available date
+            df_moc_close_price = pd.read_sql_query(query_close_price, con,
+                                                   params={'symbol': s, 'date': next_date(date, 1)})
 
-                close_status = 'market'
-                spread_at_close = current_prices_slice['Ask_P'].iloc[-1] - current_prices_slice['Bid_P'].iloc[-1]
+            # If no moc price because of weekend day
+            # TODO: how to be sure that we got correct moc price and the data is not missing for long period
+            # TODO: in current flow will get price anyway
+            while df_moc_close_price.empty:
+                logger.info('No moc price for {} on this date {}. Try next date'.format(s, date))
+                new_date = next_date(date=date, i=+1)
+                logger.info('New date: {}'.format(new_date))
+                df_moc_close_price = pd.read_sql_query(query_close_price, con,
+                                        params={'symbol': s, 'date': new_date})
+
+                date = new_date
+
+            moc_close_price = df_moc_close_price['Price'].iloc[0] / 10000
+            logger.info('Moc price {}, moc date {} for symbol {}'.format(moc_close_price, date, s))
+            close_price = moc_close_price
+            spread_at_close = 0
+            logger.info('Close position with moc order')
+        else:
+            if direction == 'Long':
+                close_price = current_prices['Bid_P'].iloc[-1]
+            elif direction == 'Short':
+                close_price = current_prices['Ask_P'].iloc[-1]
+
+            spread_at_close = current_prices['Ask_P'].iloc[-1] - current_prices['Bid_P'].iloc[-1]
 
 
-            delta_move = close_price - open_price if direction == 'Long' else open_price - close_price
-            delta_move_pct = delta_move * 100 / open_price
+        position_size = current_symbol['NextAsk_S'].iloc[0] if direction == 'Long' else current_symbol['NextBid_S'].iloc[0]
+        delta_move = close_price - open_price if direction == 'Long' else open_price - close_price
+        position_pnl = delta_move * position_size
+        delta_move_pct = delta_move * 100 / open_price
 
-            data.append({'symbol': s,
-                         'start': index,
-                         'stop': exit_time,
-                         'open_price': open_price,
-                         'close_status': close_status,
-                         'volume': volume,
-                         'spread_at_open': spread_at_open,
-                         'spread_at_close': spread_at_close,
-                         'reverse_count':row['reverse_count'],
-                         'imbBeforeReversePct': row['imbBeforeReversePct'],
-                         'imbAfterReversePct': row['imbAfterReversePct'],
-                         'deltaImbPct': row['deltaImbPct'],
-                         'direction': direction,
-                         'delta_move': delta_move,
-                         'delta_move_pct': delta_move_pct,
-                         'holding_time_2': hold_period})
+        data.append({'date': date,
+                     'symbol': s,
+                     'volume': volume,
+                     'start': datetime_start,
+                     'stop': datetime_stop,
+                     'direction': direction,
+                     'open_price': open_price,
+                     'spread_at_open': spread_at_open,
+                     'close_price': close_price,
+                     'close_status': close_status,
+                     'spread_at_close': spread_at_close,
+                     'position_size': position_size,
+                     'reverse_count':current_symbol['reverse_count'].iloc[0],
+                     'imbBeforeReversePct': current_symbol['imbBeforeReversePct'].iloc[0],
+                     'imbAfterReversePct': current_symbol['imbAfterReversePct'].iloc[0],
+                     'deltaImbPct': current_symbol['deltaImbPct'].iloc[0],
+                     'delta_move': delta_move,
+                     'position_pnl': position_pnl})
 
 stat = pd.DataFrame(data)
-stat.to_csv(cwd + '/data/atto/stat.csv')
-
+stat.to_csv(cwd + '/data/positions/hold_{}_volume_{}_spread_{}_deltaimb_{}.csv'.format(bt_config['hold'],
+                                                                                       bt_config['minVolume'],
+                                                                                       bt_config['maxSpread'],
+                                                                                       bt_config['absDeltaImbPct']))
 
