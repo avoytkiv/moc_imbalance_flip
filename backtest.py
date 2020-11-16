@@ -114,28 +114,28 @@ for f in glob.glob(path):
         stock = pd.read_sql_query(query_stock, con, params={'symbol': s, 'date': date})
         volume = stock['Shares'].iloc[-1]
 
-        if volume < bt_config['minvolume']:
-            logger.info('Volume filter: {} is less than {}'.format(volume, bt_config))
+        if volume < bt_config['minVolume']:
+            logger.info('Volume filter: {} is less than {}'.format(volume, bt_config['minVolume']))
             continue
 
-        # Get moc price for the date. Use next available date
-        df_moc_close_price = pd.read_sql_query(query_close_price, con,
-                                               params={'symbol': s, 'date': next_date(date, 1)})
-
-        # If no moc price because of weekend day
-        # TODO: how to be sure that we got correct moc price and the data is not missing for long period
-        # TODO: in current flow will get price anyway
-        while df_moc_close_price.empty:
-            logger.info('No moc price for {} for this date {}. Try next date'.format(s, date))
-            new_date = next_date(date=date, i=+1)
-            logger.info('New date: {}'.format(new_date))
-            df_moc_close_price = pd.read_sql_query(query_close_price, con,
-                                    params={'symbol': s, 'date': new_date})
-
-            date = new_date
-
-        moc_close_price = df_moc_close_price['Price'].iloc[0] / 10000
-        logger.info('Current symbol {} with volume {} and moc price {}'.format(s, volume, moc_close_price))
+        # # Get moc price for the date. Use next available date
+        # df_moc_close_price = pd.read_sql_query(query_close_price, con,
+        #                                        params={'symbol': s, 'date': next_date(date, 1)})
+        #
+        # # If no moc price because of weekend day
+        # # TODO: how to be sure that we got correct moc price and the data is not missing for long period
+        # # TODO: in current flow will get price anyway
+        # while df_moc_close_price.empty:
+        #     logger.info('No moc price for {} for this date {}. Try next date'.format(s, date))
+        #     new_date = next_date(date=date, i=+1)
+        #     logger.info('New date: {}'.format(new_date))
+        #     df_moc_close_price = pd.read_sql_query(query_close_price, con,
+        #                             params={'symbol': s, 'date': new_date})
+        #
+        #     date = new_date
+        #
+        # moc_close_price = df_moc_close_price['Price'].iloc[0] / 10000
+        # logger.info('Current symbol {} with volume {} and moc price {}'.format(s, volume, moc_close_price))
 
         current_symbol = df[df['Symbol'] == s].copy()
         current_symbol['reverse_count'] = np.arange(start=1, stop=len(current_symbol)+1)
@@ -143,28 +143,29 @@ for f in glob.glob(path):
         current_symbol['imbAfterReversePct'] = current_symbol['NextiShares'] * 100 / volume
         current_symbol['deltaImbPct'] = current_symbol['imbAfterReversePct'] - current_symbol['imbBeforeReversePct']
 
+        if current_symbol[current_symbol['deltaImbPct'].abs() > bt_config['absDeltaImbPct']].empty:
+            logger.info('Delta imbalance filter: {} is less than {}'.format(volume, bt_config))
+            continue
+
         # Set time index
         current_symbol.loc[:, 'TIME'] = current_symbol.loc[:, 'TIME'].map(lambda x: x.lstrip('0 days '))
         current_symbol['timeindex'] = current_symbol.loc[:, ['Timestamp', 'TIME']].apply(lambda x: ' '.join(x), axis=1)
         current_symbol.index = pd.to_datetime(current_symbol['timeindex'])
+        current_symbol = current_symbol.loc[current_symbol.index < pd.to_datetime(date + ' ' + '15:59:59')]
+
+        current_symbol['stop'] = current_symbol.index + timedelta(milliseconds=hold_period)
+        current_symbol.loc[current_symbol['stop'] > pd.to_datetime(date + ' ' + '15:59:59'), 'stop'] = pd.to_datetime(date + ' ' + '16:00:00')
 
         # Slice price data needed for returns calculation
         datetime_start = current_symbol['timeindex'].iloc[0].split('.')[0]
+        datetime_stop = str(current_symbol['stop'].iloc[-1]).split('.')[0]
 
-
-        if len(current_symbol) == 1:
-            logger.info('One reversal only')
-            datetime_stop = pd.to_datetime(datetime_start) + timedelta(milliseconds=hold_period)
-        else:
-            datetime_stop_temp = current_symbol['timeindex'].iloc[-1].split('.')[0]
-            datetime_stop = pd.to_datetime(datetime_stop_temp) + timedelta(milliseconds=hold_period)
-        datetime_stop = str(datetime_stop)
         logger.info('Time range from {} to {}'.format(datetime_start, datetime_stop))
 
         current_prices = get_prices(s, date, datetime_start, datetime_stop)
 
         if current_prices.empty:
-            logger.info('Continue')
+            logger.info('No price data for this reversal')
             continue
 
         for index, row in current_symbol.iterrows():
