@@ -23,6 +23,7 @@ con = pymysql.connect(host='10.12.1.25', port=3306, database='UsEquitiesL1', use
 
 # Backtest config
 bt_config = {'hold': 60000, 'minVolume': 2000000, 'maxSpread': 0.2, 'absDeltaImbPct': 1}
+bp = 50000
 
 query_stock = "SELECT * " \
               "FROM stock.Stock s " \
@@ -39,7 +40,8 @@ query_close_price = "SELECT * " \
 
 path = cwd + '/data/imbalances/*.csv'
 data = []
-for f in glob.glob(path):
+files = sorted(glob.glob(path))
+for f in files:
     date = re.search('imbalances/(.*).csv', f).group(1)
     logger.info('Date: {}'.format(date))
     df = pd.read_csv(f, index_col=0)
@@ -153,6 +155,9 @@ for f in glob.glob(path):
         position_pnl = delta_move * position_size
         delta_move_pct = delta_move * 100 / open_price
 
+        position_size_bp = min(bp / open_price, position_size)
+        position_pnl_bp = delta_move * position_size_bp
+
         data.append({'date': date,
                      'symbol': s,
                      'volume': volume,
@@ -165,18 +170,22 @@ for f in glob.glob(path):
                      'close_status': close_status,
                      'spread_at_close': spread_at_close,
                      'position_size': position_size,
+                     'position_size_bp': position_size_bp,
                      'reverse_count':current_symbol['reverse_count'].iloc[0],
                      'imbBeforeReversePct': current_symbol['imbBeforeReversePct'].iloc[0],
                      'imbAfterReversePct': current_symbol['imbAfterReversePct'].iloc[0],
                      'deltaImbPct': current_symbol['deltaImbPct'].iloc[0],
                      'delta_move': delta_move,
+                     'delta_move_pct': delta_move_pct,
+                     'position_pnl_bp': position_pnl_bp,
                      'position_pnl': position_pnl})
 
-stat = pd.DataFrame(data)
-stat.to_csv(cwd + '/data/positions/hold_{}_volume_{}_spread_{}_deltaimb_{}.csv'.format(bt_config['hold'],
-                                                                                       bt_config['minVolume'],
-                                                                                       bt_config['maxSpread'],
-                                                                                       bt_config['absDeltaImbPct']))
+    stat = pd.DataFrame(data)
+    stat.to_csv(cwd + '/data/positions/hold_{}_volume_{}_spread_{}_deltaimb_{}_date_{}.csv'.format(bt_config['hold'],
+                                                                                                   bt_config['minVolume'],
+                                                                                                   bt_config['maxSpread'],
+                                                                                                   bt_config['absDeltaImbPct'],
+                                                                                                   date))
 logger.info('Positions saved')
 logger.info('Backtest finished')
 

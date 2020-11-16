@@ -30,7 +30,8 @@ def init_logging(log_file=None, append=False, console_loglevel=logging.INFO):
     # add the handler to the root logger
     logging.getLogger('').addHandler(console)
     global logger
-    logger = logging.getLogger(__name__)
+    # logger = logging.getLogger(__name__)
+    return logging.getLogger(__name__)
 
 
 def get_data(query, params):
