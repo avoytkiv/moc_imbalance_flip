@@ -46,7 +46,6 @@ def get_data(query, params):
 
 def next_date(date, i=1):
     return datetime.strftime(datetime.strptime(date, '%Y-%m-%d') + timedelta(days=i), '%Y-%m-%d')
-init_logging(log_file='imb.log', append=False)
 
 
 def get_prices(symbol, date, datetime_start, datetime_stop):
@@ -74,12 +73,18 @@ def get_prices(symbol, date, datetime_start, datetime_stop):
 
         return df_prices
 
+# Initiate logging
+init_logging(log_file='imb.log', append=False)
+logger.info('Backtest started')
 
 cwd = os.getcwd()
 user = get_login()
 password = get_pass()
+
+# Connection to db
 con = pymysql.connect(host='10.12.1.25', port=3306, database='UsEquitiesL1', user=user, password=password)
 
+# Backtest config
 bt_config = {'hold': 60000, 'minVolume': 2000000, 'maxSpread': 0.2, 'absDeltaImbPct': 1}
 
 query_stock = "SELECT * " \
@@ -101,17 +106,16 @@ for f in glob.glob(path):
     date = re.search('imbalances/(.*).csv', f).group(1)
     logger.info('Date: {}'.format(date))
     df = pd.read_csv(f, index_col=0)
-
     symbols = df['Symbol'].unique()
-
     logger.info('Symbols in universe: {}'.format(symbols))
 
     for s in symbols:
+        logger.info('Symbol:{}'.format(s))
         stock = pd.read_sql_query(query_stock, con, params={'symbol': s, 'date': date})
         volume = stock['Shares'].iloc[-1]
 
         if volume < bt_config['minVolume']:
-            logger.info('Volume filter')
+            logger.info('Volume filter: {}'.format(volume))
             continue
 
         current_symbol = df[df['Symbol'] == s].copy()
@@ -143,18 +147,20 @@ for f in glob.glob(path):
         current_symbol.loc[:, 'TIME'] = current_symbol.loc[:, 'TIME'].map(lambda x: x.lstrip('0 days '))
         current_symbol['start'] = current_symbol.loc[:, ['Timestamp', 'TIME']].apply(lambda x: ' '.join(x), axis=1)
         current_symbol.index = pd.to_datetime(current_symbol['start'])
+        # Add exit time and status
         current_symbol['stop'] = current_symbol.index + timedelta(milliseconds=bt_config['hold'])
         current_symbol.loc[current_symbol['stop'] > pd.to_datetime(date + ' ' + '16:00:00'), 'close_status'] = 'moc'
         current_symbol['close_status'] = current_symbol['close_status'].fillna('market')
         current_symbol.loc[current_symbol['stop'] > pd.to_datetime(date + ' ' + '16:00:00'), 'stop'] = pd.to_datetime(
             date + ' ' + '16:00:00')
+        # Filter if start is after market close
         current_symbol = current_symbol.loc[current_symbol.index < pd.to_datetime(date + ' ' + '15:59:59')]
 
         if current_symbol.empty:
             logger.info('Time entry filter')
             continue
 
-        # Slice price data needed for returns calculation
+        # Slice price/market data needed for returns calculation
         datetime_start = current_symbol['start'].iloc[0].split('.')[0]
         datetime_stop = str(current_symbol['stop'].iloc[0]).split('.')[0]
 
@@ -234,4 +240,6 @@ stat.to_csv(cwd + '/data/positions/hold_{}_volume_{}_spread_{}_deltaimb_{}.csv'.
                                                                                        bt_config['minVolume'],
                                                                                        bt_config['maxSpread'],
                                                                                        bt_config['absDeltaImbPct']))
+logger.info('Positions saved')
+logger.info('Backtest finished')
 
