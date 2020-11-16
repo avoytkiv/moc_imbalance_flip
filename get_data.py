@@ -1,11 +1,12 @@
 import pymysql
 import pandas as pd
 import numpy as np
-import logging
 from datetime import datetime, timedelta
 import time
+import os
 
 
+cwd = os.getcwd()
 user = 'avoitkiv'
 password = 'Pooboad2Fe3d'
 con = pymysql.connect(host='10.12.1.25', port=3306, database='UsEquitiesL1', user=user, password=password)
@@ -48,7 +49,7 @@ for d in dates:
     if df_date.empty:
         print('No data for this date: {}'.format(d))
         continue
-    df_date.to_csv('/Users/Berg/Documents/Strategies/trend_signals_docker/data/atto/imbalances/' + d + '.csv')
+    df_date.to_csv(cwd + d + '.csv')
     print('Date {} saved'.format(d))
 
 end = time.time()
