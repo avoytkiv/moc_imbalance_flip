@@ -42,7 +42,7 @@ path = cwd + '/data/imbalances/*.csv'
 data = []
 files = sorted(glob.glob(path))
 for f in files:
-    # f = cwd + '/data/imbalances/2020-02-07.csv'
+    f = cwd + '/data/imbalances/2020-02-07.csv'
     date = re.search('imbalances/(.*).csv', f).group(1)
     logger.info('Date: {}'.format(date))
     df = pd.read_csv(f, index_col=0)
@@ -50,7 +50,7 @@ for f in files:
     logger.info('Symbols in universe: {}'.format(len(symbols)))
 
     for s in symbols:
-        # s='DPLO'
+        s='BX'
         moc_date = date
         logger.info('Symbol:{}'.format(s))
         stock = pd.read_sql_query(query_stock, con, params={'symbol': s, 'date': date})
@@ -154,7 +154,7 @@ for f in files:
                 moc_date = new_date
 
             moc_close_price = df_moc_close_price['Price'].iloc[0] / 10000
-            logger.info('Moc price {}, moc date {} for symbol {}'.format(moc_close_price, date, s))
+            logger.info('Moc price {}, moc date {} for symbol {}'.format(moc_close_price, moc_date, s))
             close_price = moc_close_price
             spread_at_close = 0
             logger.info('Close position with moc order')
