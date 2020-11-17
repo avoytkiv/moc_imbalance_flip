@@ -27,18 +27,16 @@ for d in dates:
     d = datetime.strftime(d, '%Y-%m-%d')
     query_imb = "SELECT * " \
                 "FROM " \
-                    "(SELECT Symbol, Timestamp, TIME, iPaired, Ask_P, Bid_P, iShares, " \
-                        "LEAD(iShares,1) OVER ( ORDER BY Symbol, msgCnt ) AS NextiShares, " \
-                        "LEAD(Bid_S,1) OVER ( ORDER BY Symbol, msgCnt ) AS NextBid_S, " \
-                        "LEAD(Ask_S,1) OVER ( ORDER BY Symbol, msgCnt ) AS NextAsk_S, " \
-                        "LEAD(Ask_P,1) OVER ( ORDER BY Symbol, msgCnt ) AS NextAsk_P, " \
-                        "LEAD(Bid_P,1) OVER ( ORDER BY Symbol, msgCnt ) AS NextBid_P " \
-                    "FROM `%s` AS t " \
-                    "WHERE Reason='Imbalance' " \
-                        "AND TIME>'15:50:00' " \
-                        "AND MsgSource='NYSE') T " \
-                "WHERE (((T.iShares > 0) AND (T.NextiShares < 0)) " \
-                "OR ((T.iShares < 0) AND (T.NextiShares > 0)))" % d
+                "(SELECT Symbol, msgCnt, Timestamp, TIME, iPaired, Ask_P, Bid_P, iShares, " \
+                "LAG(iShares,1) OVER ( ORDER BY Symbol, msgCnt ) AS PreviShares " \
+                "FROM `%s` AS t " \
+                "WHERE Reason='Imbalance' " \
+                "AND Symbol='BX' AND " \
+                "Ask_P > Bid_P" \
+                "AND TIME>'15:50:00' " \
+                "AND MsgSource='NYSE') T " \
+                "WHERE (((T.iShares > 0) AND (T.PreviShares < 0)) " \
+                "OR ((T.iShares < 0) AND (T.PreviShares > 0)))" % d
 
     try:
         df_date = pd.read_sql_query(query_imb, con)
