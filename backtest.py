@@ -42,7 +42,7 @@ path = cwd + '/data/imbalances/*.csv'
 data = []
 files = sorted(glob.glob(path))
 for f in files:
-    f = cwd + '/data/imbalances/2020-02-07.csv'
+    # f = cwd + '/data/imbalances/2020-02-07.csv'
     date = re.search('imbalances/(.*).csv', f).group(1)
     logger.info('Date: {}'.format(date))
     df = pd.read_csv(f, index_col=0)
@@ -50,7 +50,7 @@ for f in files:
     logger.info('Symbols in universe: {}'.format(len(symbols)))
 
     for s in symbols:
-        s='BX'
+        # s='BX'
         moc_date = date
         logger.info('Symbol:{}'.format(s))
         stock = pd.read_sql_query(query_stock, con, params={'symbol': s, 'date': date})
@@ -65,8 +65,8 @@ for f in files:
 
         current_symbol = df[df['Symbol'] == s].copy()
         current_symbol['reverse_count'] = np.arange(start=1, stop=len(current_symbol)+1)
-        current_symbol['imbBeforeReversePct'] = current_symbol['iShares'] * 100 / volume
-        current_symbol['imbAfterReversePct'] = current_symbol['NextiShares'] * 100 / volume
+        current_symbol['imbBeforeReversePct'] = current_symbol['PreviShares'] * 100 / volume
+        current_symbol['imbAfterReversePct'] = current_symbol['iShares'] * 100 / volume
         current_symbol['deltaImbPct'] = current_symbol['imbAfterReversePct'] - current_symbol['imbBeforeReversePct']
 
         current_symbol = current_symbol[current_symbol['deltaImbPct'].abs() > bt_config['absDeltaImbPct']]
@@ -76,8 +76,8 @@ for f in files:
 
         current_symbol['direction'] = np.where(current_symbol['deltaImbPct'] > 0, 'Long', 'Short')
         current_symbol['open_price'] = np.where(current_symbol['direction'] == 'Long',
-                                                current_symbol['NextAsk_P'], current_symbol['NextBid_P'])
-        current_symbol['spread_at_open'] = current_symbol['NextAsk_P'] - current_symbol['NextBid_P']
+                                                current_symbol['Ask_P'], current_symbol['Bid_P'])
+        current_symbol['spread_at_open'] = current_symbol['Ask_P'] - current_symbol['Bid_P']
 
         current_symbol = current_symbol[current_symbol['spread_at_open'] < bt_config['maxSpread']]
         if current_symbol[current_symbol['spread_at_open'] < bt_config['maxSpread']].empty:
@@ -167,7 +167,7 @@ for f in files:
             spread_at_close = current_prices['Ask_P'].iloc[-1] - current_prices['Bid_P'].iloc[-1]
 
 
-        position_size = current_symbol['NextAsk_S'].iloc[0] if direction == 'Long' else current_symbol['NextBid_S'].iloc[0]
+        position_size = current_symbol['Ask_S'].iloc[0] if direction == 'Long' else current_symbol['Bid_S'].iloc[0]
         delta_move = close_price - open_price if direction == 'Long' else open_price - close_price
         position_pnl = delta_move * position_size
         delta_move_pct = delta_move * 100 / open_price
