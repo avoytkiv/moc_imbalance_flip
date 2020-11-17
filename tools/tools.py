@@ -61,7 +61,6 @@ def get_prices(symbol, date, datetime_start, datetime_stop):
     df_prices = pd.DataFrame(prices)
 
     if df_prices.empty:
-        logger.info('No data for this time range from {} to {}'.format(datetime_start, datetime_stop))
 
         return df_prices
 

@@ -42,15 +42,21 @@ path = cwd + '/data/imbalances/*.csv'
 data = []
 files = sorted(glob.glob(path))
 for f in files:
+    # f = cwd + '/data/imbalances/2020-02-07.csv'
     date = re.search('imbalances/(.*).csv', f).group(1)
     logger.info('Date: {}'.format(date))
     df = pd.read_csv(f, index_col=0)
     symbols = df['Symbol'].unique()
-    logger.info('Symbols in universe: {}'.format(symbols))
+    logger.info('Symbols in universe: {}'.format(len(symbols)))
 
     for s in symbols:
+        # s='DPLO'
+        moc_date = date
         logger.info('Symbol:{}'.format(s))
         stock = pd.read_sql_query(query_stock, con, params={'symbol': s, 'date': date})
+        if stock.empty:
+            logger.info('Volume is empty')
+            continue
         volume = stock['Shares'].iloc[-1]
 
         if volume < bt_config['minVolume']:
@@ -120,6 +126,7 @@ for f in files:
 
 
         if close_status == 'moc':
+            logger.info('Close status moc')
             # Get moc price for the date. Use next available date
             df_moc_close_price = pd.read_sql_query(query_close_price, con,
                                                    params={'symbol': s, 'date': next_date(date, 1)})
@@ -127,14 +134,24 @@ for f in files:
             # If no moc price because of weekend day
             # TODO: how to be sure that we got correct moc price and the data is not missing for long period
             # TODO: in current flow will get price anyway
-            while df_moc_close_price.empty:
+            df_status = 'data_yes'
+            if df_moc_close_price.empty:
+                df_status = 'data_no'
+                logger.info('datafrmae status: {}'.format(df_status))
+            # while df_moc_close_price.empty:
+            while df_status=='data_no':
+
                 logger.info('No moc price for {} on this date {}. Try next date'.format(s, date))
-                new_date = next_date(date=date, i=+1)
+                new_date = next_date(date=moc_date, i=+1)
                 logger.info('New date: {}'.format(new_date))
                 df_moc_close_price = pd.read_sql_query(query_close_price, con,
                                         params={'symbol': s, 'date': new_date})
+                if df_moc_close_price.empty:
+                    df_status = 'data_no'
+                else:
+                    df_status = 'data_yes'
 
-                date = new_date
+                moc_date = new_date
 
             moc_close_price = df_moc_close_price['Price'].iloc[0] / 10000
             logger.info('Moc price {}, moc date {} for symbol {}'.format(moc_close_price, date, s))
