@@ -176,6 +176,7 @@ for f in files:
         position_pnl_bp = delta_move * position_size_bp
 
         data.append({'date': date,
+                     'moc_date': moc_date,
                      'symbol': s,
                      'volume': volume,
                      'start': datetime_start,
