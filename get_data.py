@@ -25,14 +25,12 @@ for i in range(delta.days + 1):
 
 for d in dates:
     d = datetime.strftime(d, '%Y-%m-%d')
-    query_imb = "SELECT * " \
-                "FROM " \
-                "(SELECT Symbol, msgCnt, Timestamp, TIME, iPaired, Ask_P, Bid_P, iShares, " \
+    query_imb = "SELECT * FROM " \
+                "(SELECT Symbol, Timestamp, TIME, iPaired, Ask_P, Bid_P, Ask_S, Bid_S, iShares, " \
                 "LAG(iShares,1) OVER ( ORDER BY Symbol, msgCnt ) AS PreviShares " \
                 "FROM `%s` AS t " \
                 "WHERE Reason='Imbalance' " \
-                "AND Symbol='BX' AND " \
-                "Ask_P > Bid_P" \
+                "AND Ask_P > Bid_P " \
                 "AND TIME>'15:50:00' " \
                 "AND MsgSource='NYSE') T " \
                 "WHERE (((T.iShares > 0) AND (T.PreviShares < 0)) " \
@@ -47,7 +45,7 @@ for d in dates:
     if df_date.empty:
         print('No data for this date: {}'.format(d))
         continue
-    df_date.to_csv(cwd + '/data/imbalances/' + d + '.csv')
+    df_date.to_csv(cwd + '/data/imbalances2/' + d + '.csv')
     print('Date {} saved'.format(d))
 
 end = time.time()
