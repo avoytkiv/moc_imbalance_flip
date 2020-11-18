@@ -58,7 +58,7 @@ for f in files:
     for s in symbols:
         # s='BX'
         logger.info('Symbol:{}'.format(s))
-        moc_date = date
+        moc_date = next_date(date, 1)
         volume = volume_df.loc[volume_df['Symbol']==s, 'Shares'].iloc[-1]
 
         current_symbol = df[df['Symbol'] == s].copy()
@@ -127,7 +127,7 @@ for f in files:
             logger.info('Close status moc')
             # Get moc price for the date. Use next available date
             df_moc_close_price = pd.read_sql_query(query_close_price, con,
-                                                   params={'symbol': s, 'date': next_date(date, 1)})
+                                                   params={'symbol': s, 'date': moc_date})
 
             # If no moc price because of weekend day
             # TODO: how to be sure that we got correct moc price and the data is not missing for long period
@@ -135,11 +135,10 @@ for f in files:
             df_status = 'data_yes'
             if df_moc_close_price.empty:
                 df_status = 'data_no'
-                logger.info('datafrmae status: {}'.format(df_status))
+                logger.info('No moc data over trading date + 1 day. Check next date...')
             # while df_moc_close_price.empty:
             while df_status=='data_no':
 
-                logger.info('No moc price for {} on this date {}. Try next date'.format(s, date))
                 new_date = next_date(date=moc_date, i=+1)
                 logger.info('New date: {}'.format(new_date))
                 df_moc_close_price = pd.read_sql_query(query_close_price, con,
