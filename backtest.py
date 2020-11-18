@@ -5,12 +5,14 @@ import os
 import glob
 import re
 from datetime import timedelta
+import time
 
 from tools.credentials import get_login, get_pass
 from tools.tools import init_logging, next_date, get_prices
 
 
 # Initiate logging
+start = time.time()
 logger = init_logging(log_file='imb.log', append=False)
 logger.info('Backtest started')
 
@@ -41,6 +43,7 @@ path = cwd + '/data/imbalances/*.csv'
 data = []
 files = sorted(glob.glob(path))
 for f in files:
+    start_f = time.time()
     # f = cwd + '/data/imbalances/2020-02-07.csv'
     date = re.search('imbalances/(.*).csv', f).group(1)
     logger.info('Date: {}'.format(date))
@@ -56,6 +59,7 @@ for f in files:
         continue
 
     for s in symbols:
+        start_s = time.time()
         # s='BX'
         logger.info('Symbol:{}'.format(s))
         moc_date = next_date(date, 1)
@@ -138,7 +142,7 @@ for f in files:
                 logger.info('No moc data over trading date + 1 day. Check next date...')
             # while df_moc_close_price.empty:
             counter = 0
-            while df_status=='data_no':
+            while df_status=='data_no' and counter < 10:
 
                 new_date = next_date(date=moc_date, i=+1)
                 logger.info('New date: {}, counter {}'.format(new_date, counter))
@@ -150,13 +154,11 @@ for f in files:
                     df_status = 'data_yes'
 
                 moc_date = new_date
-
-                if counter > 10:
-                    logger.info('Cannot find moc price. Continue to next stock')
-                    continue
-
                 counter += 1
 
+            if counter > 9:
+                logger.info('Cannot find moc price. Continue to next stock')
+                continue
 
             moc_close_price = df_moc_close_price['Price'].iloc[0] / 10000
             logger.info('Moc price {}, moc date {} for symbol {}'.format(moc_close_price, moc_date, s))
@@ -202,6 +204,8 @@ for f in files:
                      'delta_move_pct': delta_move_pct,
                      'position_pnl_bp': position_pnl_bp,
                      'position_pnl': position_pnl})
+        stop_s = time.time()
+        logger.info('Stock time: {}'.format(stop_s - start_s))
 
     stat = pd.DataFrame(data)
     stat.to_csv(cwd + '/data/positions/hold_{}_volume_{}_spread_{}_deltaimb_{}_date_{}.csv'.format(bt_config['hold'],
@@ -209,6 +213,10 @@ for f in files:
                                                                                                     bt_config['maxSpread'],
                                                                                                     bt_config['absDeltaImbPct'],
                                                                                                     date))
+    stop_f = time.time()
+    logger.info('File time: {}'.format(stop_f - start_f))
 logger.info('Positions saved')
 logger.info('Backtest finished')
+stop = time.time()
+logger.info('Time: {}'.format(stop - start))
 
