@@ -137,10 +137,11 @@ for f in files:
                 df_status = 'data_no'
                 logger.info('No moc data over trading date + 1 day. Check next date...')
             # while df_moc_close_price.empty:
+            counter = 0
             while df_status=='data_no':
 
                 new_date = next_date(date=moc_date, i=+1)
-                logger.info('New date: {}'.format(new_date))
+                logger.info('New date: {}, counter {}'.format(new_date, counter))
                 df_moc_close_price = pd.read_sql_query(query_close_price, con,
                                         params={'symbol': s, 'date': new_date})
                 if df_moc_close_price.empty:
@@ -149,6 +150,13 @@ for f in files:
                     df_status = 'data_yes'
 
                 moc_date = new_date
+
+                if counter > 10:
+                    logger.info('Cannot find moc price. Continue to next stock')
+                    continue
+
+                counter += 1
+
 
             moc_close_price = df_moc_close_price['Price'].iloc[0] / 10000
             logger.info('Moc price {}, moc date {} for symbol {}'.format(moc_close_price, moc_date, s))
