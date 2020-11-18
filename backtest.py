@@ -27,8 +27,7 @@ bp = 50000
 
 query_stock = "SELECT * " \
               "FROM stock.Stock s " \
-              "WHERE Symbol = %(symbol)s " \
-              "AND `Timestamp` = %(date)s"
+              "WHERE `Timestamp` = %(date)s"
 
 query_close_price = "SELECT * " \
                     "FROM stock.Stock " \
@@ -49,19 +48,18 @@ for f in files:
     symbols = df['Symbol'].unique()
     logger.info('Symbols in universe: {}'.format(len(symbols)))
 
+    logger.info('Downloading volume data')
+    volume_df = pd.read_sql_query(query_stock, con, params={'date': date})
+    logger.info('Downloaded volume data')
+    if volume_df.empty:
+        logger.info('Volume data is empty')
+        continue
+
     for s in symbols:
         # s='BX'
-        moc_date = date
         logger.info('Symbol:{}'.format(s))
-        stock = pd.read_sql_query(query_stock, con, params={'symbol': s, 'date': date})
-        if stock.empty:
-            logger.info('Volume is empty')
-            continue
-        volume = stock['Shares'].iloc[-1]
-
-        if volume < bt_config['minVolume']:
-            logger.info('Volume filter: {}'.format(volume))
-            continue
+        moc_date = date
+        volume = volume_df.loc[volume_df['Symbol']==s, 'Shares'].iloc[-1]
 
         current_symbol = df[df['Symbol'] == s].copy()
         current_symbol['reverse_count'] = np.arange(start=1, stop=len(current_symbol)+1)
@@ -200,10 +198,10 @@ for f in files:
 
     stat = pd.DataFrame(data)
     stat.to_csv(cwd + '/data/positions/hold_{}_volume_{}_spread_{}_deltaimb_{}_date_{}.csv'.format(bt_config['hold'],
-                                                                                                   bt_config['minVolume'],
-                                                                                                   bt_config['maxSpread'],
-                                                                                                   bt_config['absDeltaImbPct'],
-                                                                                                   date))
+                                                                                                    bt_config['minVolume'],
+                                                                                                    bt_config['maxSpread'],
+                                                                                                    bt_config['absDeltaImbPct'],
+                                                                                                    date))
 logger.info('Positions saved')
 logger.info('Backtest finished')
 

@@ -46,7 +46,7 @@ for d in dates:
     if df_date.empty:
         print('No data for this date: {}'.format(d))
         continue
-    df_date.to_csv(cwd + '/data/imbalances2/' + d + '.csv')
+    df_date.to_csv(cwd + '/data/imbalances/' + d + '.csv')
     print('Date {} saved'.format(d))
 
 end = time.time()
