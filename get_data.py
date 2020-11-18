@@ -28,13 +28,14 @@ for d in dates:
     query_imb = "SELECT * FROM " \
                 "(SELECT Symbol, Timestamp, TIME, iPaired, Ask_P, Bid_P, Ask_S, Bid_S, iShares, " \
                 "LAG(iShares,1) OVER ( ORDER BY Symbol, msgCnt ) AS PreviShares " \
-                "FROM `%s` AS t " \
+                "FROM UsEquitiesL1.`%s` AS t " \
                 "WHERE Reason='Imbalance' " \
                 "AND Ask_P > Bid_P " \
                 "AND TIME>'15:50:00' " \
-                "AND MsgSource='NYSE') T " \
+                "AND MsgSource='NYSE' " \
+                "AND Symbol IN (SELECT DISTINCT Symbol FROM stock.Stock WHERE `Timestamp` = '%s' AND DailyShares > 2000000 AND EXCHANGE = 'N')) AS T " \
                 "WHERE (((T.iShares > 0) AND (T.PreviShares < 0)) " \
-                "OR ((T.iShares < 0) AND (T.PreviShares > 0)))" % d
+                "OR ((T.iShares < 0) AND (T.PreviShares > 0)))" % ((d,)*2)
 
     try:
         df_date = pd.read_sql_query(query_imb, con)
