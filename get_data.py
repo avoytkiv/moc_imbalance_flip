@@ -24,6 +24,7 @@ for i in range(delta.days + 1):
     dates.append(current_date)
 
 for d in dates:
+    start_d = time.time()
     d = datetime.strftime(d, '%Y-%m-%d')
     query_imb = "SELECT * FROM " \
                 "(SELECT Symbol, Timestamp, TIME, iPaired, Ask_P, Bid_P, Ask_S, Bid_S, iShares, " \
@@ -47,7 +48,8 @@ for d in dates:
         print('No data for this date: {}'.format(d))
         continue
     df_date.to_csv(cwd + '/data/imbalances/' + d + '.csv')
-    print('Date {} saved'.format(d))
+    stop_d = time.time()
+    print('Date {} saved. Time: {} seconds'.format(d, stop_d - start_d))
 
 end = time.time()
 print(end - start)
