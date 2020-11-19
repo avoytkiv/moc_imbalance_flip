@@ -27,7 +27,7 @@ for d in dates:
     d = datetime.strftime(d, '%Y-%m-%d')
     query_imb = "SELECT * FROM " \
                 "(SELECT Symbol, Timestamp, TIME, iPaired, Ask_P, Bid_P, Ask_S, Bid_S, iShares, " \
-                "LAG(iShares,1) OVER ( ORDER BY Symbol, msgCnt ) AS PreviShares " \
+                "LAG(iShares,1) OVER ( PARTITION BY Symbol ORDER BY Symbol, msgCnt ) AS PreviShares " \
                 "FROM UsEquitiesL1.`%s` AS t " \
                 "WHERE Reason='Imbalance' " \
                 "AND Ask_P > Bid_P " \
