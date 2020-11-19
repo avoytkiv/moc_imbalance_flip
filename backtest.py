@@ -125,6 +125,8 @@ for f in files:
         open_price = current_symbol['open_price'].iloc[0]
         close_status = current_symbol['close_status'].iloc[0]
         spread_at_open = current_symbol['spread_at_open'].iloc[0]
+        initial_imb = current_symbol['iShares'].iloc[0]
+        paired_imb = current_symbol['iPaired'].iloc[0]
 
 
         if close_status == 'moc':
@@ -166,6 +168,7 @@ for f in files:
             spread_at_close = 0
             logger.info('Close position with moc order')
         else:
+            logger.info('Close status market')
             if direction == 'Long':
                 close_price = current_prices['Bid_P'].iloc[-1]
             elif direction == 'Short':
@@ -188,6 +191,8 @@ for f in files:
                      'volume': volume,
                      'start': datetime_start,
                      'stop': datetime_stop,
+                     'initial_imb': initial_imb,
+                     'paired_imb': paired_imb,
                      'direction': direction,
                      'open_price': open_price,
                      'spread_at_open': spread_at_open,
