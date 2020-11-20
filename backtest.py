@@ -47,7 +47,6 @@ files = sorted(glob.glob(path))
 processed = []
 while files:
     start_f = time.time()
-    # f = cwd + '/data/imbalances/2020-02-07.csv'
     f = files[0]
     if f in processed:
         logger.info('File has already been processed')
@@ -69,7 +68,6 @@ while files:
 
         for s in symbols:
             start_s = time.time()
-            # s='BX'
             logger.info('Symbol:{}'.format(s))
             moc_date = next_date(date, 1)
             volume = volume_df.loc[volume_df['Symbol']==s, 'Shares'].iloc[-1]
