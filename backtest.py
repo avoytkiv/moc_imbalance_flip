@@ -132,7 +132,7 @@ while files:
             open_price = current_symbol['open_price'].iloc[0]
             close_status = current_symbol['close_status'].iloc[0]
             spread_at_open = current_symbol['spread_at_open'].iloc[0]
-            initial_imb = current_symbol['iShares'].iloc[0]
+            initial_imb = current_symbol['PreviShares'].iloc[0]
             paired_imb = current_symbol['iPaired'].iloc[0]
 
 
