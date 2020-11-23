@@ -70,7 +70,7 @@ while files:
             start_s = time.time()
             logger.info('Symbol:{}'.format(s))
             moc_date = next_date(date, 1)
-            volume = volume_df.loc[volume_df['Symbol']==s, 'Shares'].iloc[-1]
+            volume = volume_df.loc[volume_df['Symbol'] == s, 'Shares'].iloc[-1]
 
             current_symbol = df[df['Symbol'] == s].copy()
             current_symbol['reverse_count'] = np.arange(start=1, stop=len(current_symbol)+1)
@@ -151,7 +151,7 @@ while files:
                     logger.info('No moc data over trading date + 1 day. Check next date...')
                 # while df_moc_close_price.empty:
                 counter = 0
-                while df_status=='data_no' and counter < 10:
+                while df_status == 'data_no' and counter < 10:
 
                     new_date = next_date(date=moc_date, i=+1)
                     logger.info('New date: {}, counter {}'.format(new_date, counter))
@@ -208,7 +208,7 @@ while files:
                          'spread_at_close': spread_at_close,
                          'position_size': position_size,
                          'position_size_bp': position_size_bp,
-                         'reverse_count':current_symbol['reverse_count'].iloc[0],
+                         'reverse_count': current_symbol['reverse_count'].iloc[0],
                          'imbBeforeReversePct': current_symbol['imbBeforeReversePct'].iloc[0],
                          'imbAfterReversePct': current_symbol['imbAfterReversePct'].iloc[0],
                          'deltaImbPct': current_symbol['deltaImbPct'].iloc[0],
@@ -221,10 +221,10 @@ while files:
 
         stat = pd.DataFrame(data)
         stat.to_csv(cwd + '/data/positions/hold_{}_volume_{}_spread_{}_deltaimb_{}_date_{}.csv'.format(bt_config['hold'],
-                                                                                                        bt_config['minVolume'],
-                                                                                                        bt_config['maxSpread'],
-                                                                                                        bt_config['absDeltaImbPct'],
-                                                                                                        date))
+                                                                                                       bt_config['minVolume'],
+                                                                                                       bt_config['maxSpread'],
+                                                                                                       bt_config['absDeltaImbPct'],
+                                                                                                       date))
         stop_f = time.time()
         logger.info('File time: {}'.format(stop_f - start_f))
     files = sorted(glob.glob(path))
