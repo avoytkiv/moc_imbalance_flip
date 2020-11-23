@@ -20,7 +20,7 @@ cwd = os.getcwd()
 logger.info('Current directory: {}'.format(cwd))
 user = get_login()
 password = get_pass()
-test=2
+
 # Connection to db
 con = pymysql.connect(host='10.12.1.25', port=3306, database='UsEquitiesL1', user=user, password=password)
 logger.info('Connected to db successfully')
