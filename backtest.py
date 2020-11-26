@@ -65,6 +65,7 @@ while files:
             continue
 
         for s in symbols:
+            s = 'BMY'
             start_s = time.time()
             logger.info('Symbol:{}'.format(s))
             moc_date = next_date(date, 1)
@@ -183,14 +184,14 @@ while files:
             # Need this for MAE/MFE analysis to optimize entry and exit timing and potentially stop loss
             if direction == 'Long':
                 max_pnl_time = pd.to_numeric(current_prices['Bid_P']).idxmax()
-                max_pnl_price = current_prices.loc[max_pnl_time, 'Bid_P']
+                max_pnl_price = pd.to_numeric(current_prices['Bid_P']).max()
                 min_pnl_time = pd.to_numeric(current_prices['Bid_P']).idxmin()
-                min_pnl_price = current_prices.loc[min_pnl_time, 'Bid_P']
+                min_pnl_price = pd.to_numeric(current_prices['Bid_P']).min()
             else:
                 max_pnl_time = pd.to_numeric(current_prices['Ask_P']).idxmin()
-                max_pnl_price = current_prices.loc[max_pnl_time, 'Ask_P']
+                max_pnl_price = pd.to_numeric(current_prices['Ask_P']).min()
                 min_pnl_time = pd.to_numeric(current_prices['Ask_P']).idxmax()
-                min_pnl_price = current_prices.loc[min_pnl_time, 'Ask_P']
+                min_pnl_price = pd.to_numeric(current_prices['Ask_P']).max()
 
             position_size = current_symbol['Ask_S'].iloc[0] if direction == 'Long' else current_symbol['Bid_S'].iloc[0]
             delta_move = close_price - open_price if direction == 'Long' else open_price - close_price
@@ -200,34 +201,37 @@ while files:
             position_size_bp = min(bp / open_price, position_size)
             position_pnl_bp = delta_move * position_size_bp
 
-            data.append({'date': date,
-                         'moc_date': moc_date,
-                         'symbol': s,
-                         'volume': volume,
-                         'start': datetime_start,
-                         'stop': datetime_stop,
-                         'initial_imb': initial_imb,
-                         'paired_imb': paired_imb,
-                         'direction': direction,
-                         'open_price': open_price,
-                         'spread_at_open': spread_at_open,
-                         'close_price': close_price,
-                         'close_status': close_status,
-                         'spread_at_close': spread_at_close,
-                         'max_pnl_time': max_pnl_time,
-                         'max_pnl_price': max_pnl_price,
-                         'min_pnl_time': min_pnl_time,
-                         'min_pnl_price': min_pnl_price,
-                         'position_size': position_size,
-                         'position_size_bp': position_size_bp,
-                         'reverse_count': current_symbol['reverse_count'].iloc[0],
-                         'imbBeforeReversePct': current_symbol['imbBeforeReversePct'].iloc[0],
-                         'imbAfterReversePct': current_symbol['imbAfterReversePct'].iloc[0],
-                         'deltaImbPct': current_symbol['deltaImbPct'].iloc[0],
-                         'delta_move': delta_move,
-                         'delta_move_pct': delta_move_pct,
-                         'position_pnl_bp': position_pnl_bp,
-                         'position_pnl': position_pnl})
+            d = {'date': date,
+                 'moc_date': moc_date,
+                 'symbol': s,
+                 'volume': volume,
+                 'start': datetime_start,
+                 'stop': datetime_stop,
+                 'initial_imb': initial_imb,
+                 'paired_imb': paired_imb,
+                 'direction': direction,
+                 'open_price': open_price,
+                 'spread_at_open': spread_at_open,
+                 'close_price': close_price,
+                 'close_status': close_status,
+                 'spread_at_close': spread_at_close,
+                 'max_pnl_time': max_pnl_time,
+                 'max_pnl_price': max_pnl_price,
+                 'min_pnl_time': min_pnl_time,
+                 'min_pnl_price': min_pnl_price,
+                 'position_size': position_size,
+                 'position_size_bp': position_size_bp,
+                 'reverse_count': current_symbol['reverse_count'].iloc[0],
+                 'imbBeforeReversePct': current_symbol['imbBeforeReversePct'].iloc[0],
+                 'imbAfterReversePct': current_symbol['imbAfterReversePct'].iloc[0],
+                 'deltaImbPct': current_symbol['deltaImbPct'].iloc[0],
+                 'delta_move': delta_move,
+                 'delta_move_pct': delta_move_pct,
+                 'position_pnl_bp': position_pnl_bp,
+                 'position_pnl': position_pnl}
+
+            logger.info(d)
+            data.append(d)
             stop_s = time.time()
             logger.info('Stock time: {}'.format(stop_s - start_s))
 
