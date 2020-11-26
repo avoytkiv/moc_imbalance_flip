@@ -65,7 +65,6 @@ while files:
             continue
 
         for s in symbols:
-            s = 'BMY'
             start_s = time.time()
             logger.info('Symbol:{}'.format(s))
             moc_date = next_date(date, 1)
