@@ -10,7 +10,6 @@ import time
 from tools.credentials import get_login, get_pass
 from tools.tools import init_logging, next_date, get_prices
 
-
 # Initiate logging
 start = time.time()
 logger = init_logging(log_file='imb.log', append=False)
@@ -39,7 +38,6 @@ query_close_price = "SELECT * " \
                     "AND Timestamp = %(date)s " \
                     "AND Updated<'16:00' " \
                     "GROUP BY Timestamp "
-
 
 path = cwd + '/data/imbalances/*.csv'
 data = []
@@ -73,7 +71,7 @@ while files:
             volume = volume_df.loc[volume_df['Symbol'] == s, 'Shares'].iloc[-1]
 
             current_symbol = df[df['Symbol'] == s].copy()
-            current_symbol['reverse_count'] = np.arange(start=1, stop=len(current_symbol)+1)
+            current_symbol['reverse_count'] = np.arange(start=1, stop=len(current_symbol) + 1)
             current_symbol['imbBeforeReversePct'] = current_symbol['PreviShares'] * 100 / volume
             current_symbol['imbAfterReversePct'] = current_symbol['iShares'] * 100 / volume
             current_symbol['deltaImbPct'] = current_symbol['imbAfterReversePct'] - current_symbol['imbBeforeReversePct']
@@ -93,7 +91,6 @@ while files:
                 logger.info('Spread filter')
                 continue
 
-
             # Trade only first reversal
             current_symbol = current_symbol[current_symbol['reverse_count'] == current_symbol['reverse_count'].min()]
 
@@ -105,7 +102,8 @@ while files:
             current_symbol['stop'] = current_symbol.index + timedelta(milliseconds=bt_config['hold'])
             current_symbol.loc[current_symbol['stop'] > pd.to_datetime(date + ' ' + '16:00:00'), 'close_status'] = 'moc'
             current_symbol['close_status'] = current_symbol['close_status'].fillna('market')
-            current_symbol.loc[current_symbol['stop'] > pd.to_datetime(date + ' ' + '16:00:00'), 'stop'] = pd.to_datetime(
+            current_symbol.loc[
+                current_symbol['stop'] > pd.to_datetime(date + ' ' + '16:00:00'), 'stop'] = pd.to_datetime(
                 date + ' ' + '16:00:00')
             # Filter if start is after market close
             current_symbol = current_symbol.loc[current_symbol.index < pd.to_datetime(date + ' ' + '15:59:59')]
@@ -127,14 +125,12 @@ while files:
                 logger.info('No price data for this reversal')
                 continue
 
-
             direction = current_symbol['direction'].iloc[0]
             open_price = current_symbol['open_price'].iloc[0]
             close_status = current_symbol['close_status'].iloc[0]
             spread_at_open = current_symbol['spread_at_open'].iloc[0]
             initial_imb = current_symbol['PreviShares'].iloc[0]
             paired_imb = current_symbol['iPaired'].iloc[0]
-
 
             if close_status == 'moc':
                 logger.info('Close status moc')
@@ -156,7 +152,7 @@ while files:
                     new_date = next_date(date=moc_date, i=+1)
                     logger.info('New date: {}, counter {}'.format(new_date, counter))
                     df_moc_close_price = pd.read_sql_query(query_close_price, con,
-                                            params={'symbol': s, 'date': new_date})
+                                                           params={'symbol': s, 'date': new_date})
                     if df_moc_close_price.empty:
                         df_status = 'data_no'
                     else:
@@ -183,6 +179,18 @@ while files:
 
                 spread_at_close = current_prices['Ask_P'].iloc[-1] - current_prices['Bid_P'].iloc[-1]
 
+            # What is high/low market price and respective time indexes where pnl is max/min considering direction
+            # Need this for MAE/MFE analysis to optimize entry and exit timing and potentially stop loss
+            if direction == 'Long':
+                max_pnl_time = pd.to_numeric(current_prices['Bid_P']).idxmax()
+                max_pnl_price = current_prices.loc[max_pnl_time, 'Bid_P']
+                min_pnl_time = pd.to_numeric(current_prices['Bid_P']).idxmin()
+                min_pnl_price = current_prices.loc[min_pnl_time, 'Bid_P']
+            else:
+                max_pnl_time = pd.to_numeric(current_prices['Ask_P']).idxmin()
+                max_pnl_price = current_prices.loc[max_pnl_time, 'Ask_P']
+                min_pnl_time = pd.to_numeric(current_prices['Ask_P']).idxmax()
+                min_pnl_price = current_prices.loc[min_pnl_time, 'Ask_P']
 
             position_size = current_symbol['Ask_S'].iloc[0] if direction == 'Long' else current_symbol['Bid_S'].iloc[0]
             delta_move = close_price - open_price if direction == 'Long' else open_price - close_price
@@ -206,6 +214,10 @@ while files:
                          'close_price': close_price,
                          'close_status': close_status,
                          'spread_at_close': spread_at_close,
+                         'max_pnl_time': max_pnl_time,
+                         'max_pnl_price': max_pnl_price,
+                         'min_pnl_time': min_pnl_time,
+                         'min_pnl_price': min_pnl_price,
                          'position_size': position_size,
                          'position_size_bp': position_size_bp,
                          'reverse_count': current_symbol['reverse_count'].iloc[0],
@@ -220,11 +232,13 @@ while files:
             logger.info('Stock time: {}'.format(stop_s - start_s))
 
         stat = pd.DataFrame(data)
-        stat.to_csv(cwd + '/data/positions/hold_{}_volume_{}_spread_{}_deltaimb_{}_date_{}.csv'.format(bt_config['hold'],
-                                                                                                       bt_config['minVolume'],
-                                                                                                       bt_config['maxSpread'],
-                                                                                                       bt_config['absDeltaImbPct'],
-                                                                                                       date))
+        stat.to_csv(
+            cwd + '/data/positions/hold_{}_volume_{}_spread_{}_deltaimb_{}_date_{}.csv'.format(bt_config['hold'],
+                                                                                               bt_config['minVolume'],
+                                                                                               bt_config['maxSpread'],
+                                                                                               bt_config[
+                                                                                                   'absDeltaImbPct'],
+                                                                                               date))
         stop_f = time.time()
         logger.info('File time: {}'.format(stop_f - start_f))
     files = sorted(glob.glob(path))
@@ -235,4 +249,3 @@ logger.info('Positions saved')
 logger.info('Backtest finished')
 stop = time.time()
 logger.info('Time: {}'.format(stop - start))
-
