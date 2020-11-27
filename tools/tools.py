@@ -53,7 +53,7 @@ def get_prices(symbol, date, datetime_start, datetime_stop):
                              "FROM tick.Equities "
                              "WHERE Symbol = '%s' "
                              "AND TradeDate='%s' "
-                             "AND toDateTime(XTime)>toDateTime('%s') "
+                             "AND toDateTime(XTime)>=toDateTime('%s') "
                              "AND toDateTime(XTime)<toDateTime('%s') "
                              "ORDER BY XTime, MsgCnt ASC" % (symbol, date, datetime_start, datetime_stop),
                              tableName='Equities')

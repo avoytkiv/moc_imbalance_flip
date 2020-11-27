@@ -120,6 +120,7 @@ while files:
 
             # Slice prices
             current_prices = get_prices(s, date, datetime_start, datetime_stop)
+            current_prices = current_prices[current_prices.index > current_symbol['start'].iloc[0]].copy()
 
             if current_prices.empty:
                 logger.info('No price data for this reversal')
