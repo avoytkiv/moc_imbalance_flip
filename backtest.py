@@ -8,7 +8,7 @@ from datetime import timedelta
 import time
 
 from tools.credentials import get_login, get_pass
-from tools.tools import init_logging, next_date, get_prices
+from tools.tools import init_logging, get_prices, get_close
 
 # Initiate logging
 start = time.time()
@@ -31,13 +31,6 @@ bp = 50000
 query_stock = "SELECT * " \
               "FROM stock.Stock s " \
               "WHERE `Timestamp` = %(date)s"
-
-query_close_price = "SELECT * " \
-                    "FROM stock.Stock " \
-                    "WHERE symbol = %(symbol)s " \
-                    "AND Timestamp = %(date)s " \
-                    "AND Updated<'16:00' " \
-                    "GROUP BY Timestamp "
 
 path = cwd + '/data/imbalances/*.csv'
 data = []
@@ -67,7 +60,7 @@ while files:
         for s in symbols:
             start_s = time.time()
             logger.info('Symbol:{}'.format(s))
-            moc_date = next_date(date, 1)
+            moc_close_price = np.nan
             volume = volume_df.loc[volume_df['Symbol'] == s, 'Shares'].iloc[-1]
 
             current_symbol = df[df['Symbol'] == s].copy()
@@ -120,7 +113,7 @@ while files:
 
             # Slice prices
             current_prices = get_prices(s, date, datetime_start, datetime_stop)
-            current_prices = current_prices[current_prices.index > current_symbol['start'].iloc[0]].copy()
+            current_prices = current_prices[current_prices.index > current_symbol['start'].iloc[0]]
 
             if current_prices.empty:
                 logger.info('No price data for this reversal')
@@ -135,66 +128,37 @@ while files:
 
             if close_status == 'moc':
                 logger.info('Close status moc')
-                # Get moc price for the date. Use next available date
-                df_moc_close_price = pd.read_sql_query(query_close_price, con,
-                                                       params={'symbol': s, 'date': moc_date})
+                # Get moc price for the date
+                df_moc_close_price = get_close(s, date)
 
-                # If no moc price because of weekend day
-                # TODO: how to be sure that we got correct moc price and the data is not missing for long period
-                # TODO: in current flow will get price anyway
-                df_status = 'data_yes'
                 if df_moc_close_price.empty:
-                    df_status = 'data_no'
-                    logger.info('No moc data over trading date + 1 day. Check next date...')
-                # while df_moc_close_price.empty:
-                counter = 0
-                while df_status == 'data_no' and counter < 10:
-
-                    new_date = next_date(date=moc_date, i=+1)
-                    logger.info('New date: {}, counter {}'.format(new_date, counter))
-                    df_moc_close_price = pd.read_sql_query(query_close_price, con,
-                                                           params={'symbol': s, 'date': new_date})
-                    if df_moc_close_price.empty:
-                        df_status = 'data_no'
-                    else:
-                        df_status = 'data_yes'
-
-                    moc_date = new_date
-                    counter += 1
-
-                if counter > 9:
-                    logger.info('Cannot find moc price. Continue to next stock')
+                    logger.info('No moc data')
                     continue
 
-                moc_close_price = df_moc_close_price['Price'].iloc[0] / 10000
-                logger.info('Moc price {}, moc date {} for symbol {}'.format(moc_close_price, moc_date, s))
-                close_price = moc_close_price
+                moc_close_price = df_moc_close_price['tPrice'].iloc[0]
+                logger.info('Moc price {} for symbol {}'.format(moc_close_price, s))
+                close_price = current_prices['Bid_P'].iloc[-1] if direction == 'Long' else current_prices['Ask_P'].iloc[-1] #moc_close_price
                 spread_at_close = 0
                 logger.info('Close position with moc order')
             else:
                 logger.info('Close status market')
-                if direction == 'Long':
-                    close_price = current_prices['Bid_P'].iloc[-1]
-                elif direction == 'Short':
-                    close_price = current_prices['Ask_P'].iloc[-1]
-
+                close_price = current_prices['Bid_P'].iloc[-1] if direction == 'Long' else current_prices['Ask_P'].iloc[-1]
                 spread_at_close = current_prices['Ask_P'].iloc[-1] - current_prices['Bid_P'].iloc[-1]
 
             # What is high/low market price and respective time indexes where pnl is max/min considering direction
             # Need this for MAE/MFE analysis to optimize entry and exit timing and potentially stop loss
-            if direction == 'Long':
-                max_pnl_time = pd.to_numeric(current_prices['Bid_P']).idxmax()
-                max_pnl_price = pd.to_numeric(current_prices['Bid_P']).max()
-                min_pnl_time = pd.to_numeric(current_prices['Bid_P']).idxmin()
-                min_pnl_price = pd.to_numeric(current_prices['Bid_P']).min()
-            else:
-                max_pnl_time = pd.to_numeric(current_prices['Ask_P']).idxmin()
-                max_pnl_price = pd.to_numeric(current_prices['Ask_P']).min()
-                min_pnl_time = pd.to_numeric(current_prices['Ask_P']).idxmax()
-                min_pnl_price = pd.to_numeric(current_prices['Ask_P']).max()
+            max_pnl_time = pd.to_numeric(current_prices['Bid_P']).idxmax() if direction == 'Long' else pd.to_numeric(current_prices['Ask_P']).idxmin()
+            max_pnl_price = pd.to_numeric(current_prices['Bid_P']).max() if direction == 'Long' else pd.to_numeric(current_prices['Ask_P']).min()
+            min_pnl_time = pd.to_numeric(current_prices['Bid_P']).idxmin() if direction == 'Long' else pd.to_numeric(current_prices['Ask_P']).idxmax()
+            min_pnl_price = pd.to_numeric(current_prices['Bid_P']).min() if direction == 'Long' else pd.to_numeric(current_prices['Ask_P']).max()
 
+            # Pnl
+            if close_status == 'market':
+                delta_move = close_price - open_price if direction == 'Long' else open_price - close_price
+            else:
+                delta_move = moc_close_price - open_price if direction == 'Long' else open_price - moc_close_price
             position_size = current_symbol['Ask_S'].iloc[0] if direction == 'Long' else current_symbol['Bid_S'].iloc[0]
-            delta_move = close_price - open_price if direction == 'Long' else open_price - close_price
+
             position_pnl = delta_move * position_size
             delta_move_pct = delta_move * 100 / open_price
 
@@ -202,7 +166,6 @@ while files:
             position_pnl_bp = delta_move * position_size_bp
 
             d = {'date': date,
-                 'moc_date': moc_date,
                  'symbol': s,
                  'volume': volume,
                  'start': datetime_start,
@@ -213,6 +176,7 @@ while files:
                  'open_price': open_price,
                  'spread_at_open': spread_at_open,
                  'close_price': close_price,
+                 'moc_close_price': moc_close_price,
                  'close_status': close_status,
                  'spread_at_close': spread_at_close,
                  'max_pnl_time': max_pnl_time,
