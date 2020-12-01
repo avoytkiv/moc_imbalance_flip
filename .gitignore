@@ -1,8 +1,6 @@
 *.DS_Store
 *.json
-*.csv
 *.log
-clickhouse_driver
 include
 pip-selfcheck
 bin
