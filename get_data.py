@@ -14,8 +14,8 @@ con = pymysql.connect(host='10.12.1.25', port=3306, database='UsEquitiesL1', use
 
 start = time.time()
 from datetime import date
-d1 = date(2020, 2, 3)
-d2 = date(2020, 11, 19)
+d1 = date(2020, 11, 20)
+d2 = date(2020, 12, 10)
 delta = d2 - d1
 
 dates = []
