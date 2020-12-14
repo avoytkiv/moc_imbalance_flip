@@ -183,14 +183,14 @@ while files:
                  'max_pnl_price': max_pnl_price,
                  'min_pnl_time': min_pnl_time,
                  'min_pnl_price': min_pnl_price,
-                 'position_size': position_size_bp,
+                 'size': position_size_bp,
                  'reverse_count': current_symbol['reverse_count'].iloc[0],
                  'imbBeforeReversePct': current_symbol['imbBeforeReversePct'].iloc[0],
                  'imbAfterReversePct': current_symbol['imbAfterReversePct'].iloc[0],
                  'deltaImbPct': current_symbol['deltaImbPct'].iloc[0],
                  'delta_move': delta_move,
                  'delta_move_pct': delta_move_pct,
-                 'position_pnl': position_pnl_bp}
+                 'pnl': position_pnl_bp}
 
             logger.info(d)
             data.append(d)
